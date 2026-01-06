@@ -14,7 +14,7 @@ export default function Auth() {
   const location = useLocation();
   const isLogin = location.pathname === '/auth/login';
   const navigate = useNavigate();
-  const { login, register, hasCompletedOnboarding } = useAuth();
+  const { login, register } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
 
@@ -33,7 +33,7 @@ export default function Auth() {
     try {
       if (isLogin) {
         await login(email, password);
-        navigate(hasCompletedOnboarding ? '/dashboard' : '/onboarding');
+        // Navigation will be handled by PublicRoute redirect after auth state updates
       } else {
         if (password !== confirmPassword) {
           setError('Hasła nie są identyczne');
@@ -46,11 +46,11 @@ export default function Auth() {
           return;
         }
         await register(email, password, name);
+        // New users always go to onboarding
         navigate('/onboarding');
       }
     } catch (err: any) {
       setError(err.message || 'Wystąpił błąd');
-    } finally {
       setIsLoading(false);
     }
   };

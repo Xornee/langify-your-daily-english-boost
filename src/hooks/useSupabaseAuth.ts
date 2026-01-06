@@ -37,7 +37,8 @@ export function useSupabaseAuth() {
     
     if (profileData) {
       setProfile(profileData);
-      setHasCompletedOnboarding(!!profileData.industry_context && profileData.industry_context !== 'general');
+      // User has completed onboarding if they have an industry_context set (including 'general')
+      setHasCompletedOnboarding(!!profileData.industry_context);
     }
 
     // Fetch daily goal
