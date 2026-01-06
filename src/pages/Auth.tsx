@@ -153,17 +153,6 @@ export default function Auth() {
                 {isLoading ? 'Ładowanie...' : isLogin ? t('auth.login') : t('auth.register')}
               </Button>
 
-              {/* Demo accounts info */}
-              {isLogin && (
-                <div className="rounded-lg bg-accent/50 p-3 text-sm">
-                  <p className="font-medium text-foreground mb-2">Konta testowe:</p>
-                  <ul className="space-y-1 text-muted-foreground text-xs">
-                    <li>• admin@langify.com / admin123 (Admin)</li>
-                    <li>• teacher@langify.com / teacher123 (Nauczyciel)</li>
-                    <li>• user@langify.com / user123 (Użytkownik)</li>
-                  </ul>
-                </div>
-              )}
             </form>
 
             <div className="mt-6 text-center text-sm">
