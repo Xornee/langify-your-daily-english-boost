@@ -1,11 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { courses, getLessonsForCourse } from '@/data/courses';
+import { useCourses } from '@/hooks/useCourses';
 import { 
   Flame, 
   Target, 
@@ -14,14 +14,31 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle2,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user, userStats, dailyGoal } = useAuth();
+  const { user, userStats, dailyGoal, isLoading: authLoading } = useAuth();
   const { t, language } = useLanguage();
+  
+  const { courses, isLoading: coursesLoading } = useCourses(user?.industryContext, undefined);
 
-  const industryLabel = {
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  const industryLabel: Record<string, string> = {
     it: language === 'pl' ? 'IT / Technologii' : 'IT / Technology',
     finance: language === 'pl' ? 'Finansów' : 'Finance',
     office: language === 'pl' ? 'Biura' : 'Office',
@@ -32,9 +49,7 @@ export default function Dashboard() {
     ? Math.min(100, (userStats.todayXp / dailyGoal.targetXpPerDay) * 100)
     : 0;
 
-  const suggestedCourses = courses
-    .filter(c => c.industryTag === user?.industryContext || c.industryTag === 'general')
-    .slice(0, 3);
+  const suggestedCourses = courses.slice(0, 3);
 
   return (
     <Layout>
@@ -42,10 +57,10 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {t('dashboard.greeting')}, {user?.name}! 👋
+            {t('dashboard.greeting')}, {user.name}! 👋
           </h1>
           <p className="text-muted-foreground">
-            {t('dashboard.englishFor')} {industryLabel[user?.industryContext || 'general']}
+            {t('dashboard.englishFor')} {industryLabel[user.industryContext || 'general']}
           </p>
         </div>
 
@@ -170,39 +185,45 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-foreground mb-4">
             {t('dashboard.suggestedForYou')}
           </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {suggestedCourses.map((course) => (
-              <Card key={course.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-                      {course.level}
-                    </span>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      {course.estimatedMinutes} {t('courses.minutes')}
+          {coursesLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {suggestedCourses.map((course) => (
+                <Card key={course.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
+                        {course.level}
+                      </span>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        {course.estimated_minutes} {t('courses.minutes')}
+                      </div>
                     </div>
-                  </div>
-                  <CardTitle className="text-lg">{course.title}</CardTitle>
-                  <CardDescription className="line-clamp-2">
-                    {course.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      {course.lessonsCount} {t('courses.lessons')}
-                    </span>
-                    <Button size="sm" asChild>
-                      <Link to={`/courses/${course.id}`}>
-                        {t('courses.start')}
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <CardTitle className="text-lg">{course.title}</CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {course.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {course.lessons_count} {t('courses.lessons')}
+                      </span>
+                      <Button size="sm" asChild>
+                        <Link to={`/courses/${course.id}`}>
+                          {t('courses.start')}
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Layout>

@@ -9,15 +9,22 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { courses, lessons, tasks } from '@/data/courses';
-import type { IndustryContext, Level, TaskType } from '@/types';
-import { GraduationCap, Plus, BookOpen, Edit, Trash2 } from 'lucide-react';
+import { useCourses, useCourse } from '@/hooks/useCourses';
+import { supabase } from '@/integrations/supabase/client';
+import { GraduationCap, Plus, Edit, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Navigate } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
+
+type IndustryContext = Database['public']['Enums']['industry_context'];
+type Level = Database['public']['Enums']['level'];
+type TaskType = Database['public']['Enums']['task_type'];
 
 export default function Teacher() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { t, language } = useLanguage();
   const { toast } = useToast();
+  const { courses, isLoading: coursesLoading } = useCourses();
   
   const [newCourse, setNewCourse] = useState({
     title: '',
@@ -26,12 +33,14 @@ export default function Teacher() {
     level: 'A2' as Level,
   });
   
+  const [selectedCourseId, setSelectedCourseId] = useState('');
   const [newLesson, setNewLesson] = useState({
     courseId: '',
     title: '',
     description: '',
   });
   
+  const [selectedLessonId, setSelectedLessonId] = useState('');
   const [newTask, setNewTask] = useState({
     lessonId: '',
     type: 'MULTIPLE_CHOICE' as TaskType,
@@ -40,11 +49,26 @@ export default function Teacher() {
     incorrectAnswers: '',
   });
 
-  // Filter courses created by current user (in demo, show all)
-  const myCourses = courses;
-  const myLessons = lessons;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCreateCourse = () => {
+  // Get lessons for selected course
+  const { lessons } = useCourse(selectedCourseId || undefined);
+
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  const handleCreateCourse = async () => {
     if (!newCourse.title || !newCourse.description) {
       toast({
         title: language === 'pl' ? 'Błąd' : 'Error',
@@ -54,9 +78,32 @@ export default function Teacher() {
       return;
     }
     
+    setIsSubmitting(true);
+    
+    const { error } = await supabase
+      .from('courses')
+      .insert({
+        title: newCourse.title,
+        description: newCourse.description,
+        industry_tag: newCourse.industryTag,
+        level: newCourse.level,
+        created_by: user.id,
+      });
+    
+    setIsSubmitting(false);
+    
+    if (error) {
+      toast({
+        title: language === 'pl' ? 'Błąd' : 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     toast({
       title: language === 'pl' ? 'Sukces!' : 'Success!',
-      description: language === 'pl' ? 'Kurs został utworzony (demo)' : 'Course created (demo)',
+      description: language === 'pl' ? 'Kurs został utworzony' : 'Course created',
     });
     
     setNewCourse({
@@ -67,7 +114,7 @@ export default function Teacher() {
     });
   };
 
-  const handleCreateLesson = () => {
+  const handleCreateLesson = async () => {
     if (!newLesson.title || !newLesson.courseId) {
       toast({
         title: language === 'pl' ? 'Błąd' : 'Error',
@@ -77,9 +124,30 @@ export default function Teacher() {
       return;
     }
     
+    setIsSubmitting(true);
+    
+    const { error } = await supabase
+      .from('lessons')
+      .insert({
+        course_id: newLesson.courseId,
+        title: newLesson.title,
+        description: newLesson.description || null,
+      });
+    
+    setIsSubmitting(false);
+    
+    if (error) {
+      toast({
+        title: language === 'pl' ? 'Błąd' : 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     toast({
       title: language === 'pl' ? 'Sukces!' : 'Success!',
-      description: language === 'pl' ? 'Lekcja została dodana (demo)' : 'Lesson added (demo)',
+      description: language === 'pl' ? 'Lekcja została dodana' : 'Lesson added',
     });
     
     setNewLesson({
@@ -89,7 +157,7 @@ export default function Teacher() {
     });
   };
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     if (!newTask.questionText || !newTask.correctAnswer || !newTask.lessonId) {
       toast({
         title: language === 'pl' ? 'Błąd' : 'Error',
@@ -99,9 +167,36 @@ export default function Teacher() {
       return;
     }
     
+    setIsSubmitting(true);
+    
+    const incorrectAnswersArray = newTask.type !== 'FLASHCARD' 
+      ? newTask.incorrectAnswers.split('\n').filter(a => a.trim())
+      : [];
+    
+    const { error } = await supabase
+      .from('tasks')
+      .insert({
+        lesson_id: newTask.lessonId,
+        type: newTask.type,
+        question_text: newTask.questionText,
+        correct_answer: newTask.correctAnswer,
+        incorrect_answers: incorrectAnswersArray,
+      });
+    
+    setIsSubmitting(false);
+    
+    if (error) {
+      toast({
+        title: language === 'pl' ? 'Błąd' : 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     toast({
       title: language === 'pl' ? 'Sukces!' : 'Success!',
-      description: language === 'pl' ? 'Zadanie zostało dodane (demo)' : 'Task added (demo)',
+      description: language === 'pl' ? 'Zadanie zostało dodane' : 'Task added',
     });
     
     setNewTask({
@@ -138,31 +233,42 @@ export default function Teacher() {
 
           {/* My Courses */}
           <TabsContent value="courses">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {myCourses.map((course) => (
-                <Card key={course.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
-                        {course.level}
-                      </span>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                        </Button>
+            {coursesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {courses.map((course) => (
+                  <Card key={course.id}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
+                          {course.level}
+                        </span>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <CardTitle className="text-lg">{course.title}</CardTitle>
-                    <CardDescription className="line-clamp-2">{course.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {course.lessonsCount} {t('courses.lessons')}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      <CardTitle className="text-lg">{course.title}</CardTitle>
+                      <CardDescription className="line-clamp-2">{course.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        {course.lessons_count} {t('courses.lessons')}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+                {courses.length === 0 && (
+                  <p className="text-muted-foreground col-span-full text-center py-8">
+                    {language === 'pl' ? 'Nie masz jeszcze żadnych kursów' : 'You have no courses yet'}
+                  </p>
+                )}
+              </div>
+            )}
           </TabsContent>
 
           {/* Create Course */}
@@ -229,8 +335,8 @@ export default function Teacher() {
                     </Select>
                   </div>
                 </div>
-                <Button onClick={handleCreateCourse} className="w-full">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button onClick={handleCreateCourse} className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   {t('teacher.createCourse')}
                 </Button>
               </CardContent>
@@ -257,7 +363,7 @@ export default function Teacher() {
                       <SelectValue placeholder={language === 'pl' ? 'Wybierz kurs' : 'Select course'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {myCourses.map((course) => (
+                      {courses.map((course) => (
                         <SelectItem key={course.id} value={course.id}>
                           {course.title}
                         </SelectItem>
@@ -282,8 +388,8 @@ export default function Teacher() {
                     rows={2}
                   />
                 </div>
-                <Button onClick={handleCreateLesson} className="w-full">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button onClick={handleCreateLesson} className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   {t('teacher.addLesson')}
                 </Button>
               </CardContent>
@@ -301,16 +407,35 @@ export default function Teacher() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label>{language === 'pl' ? 'Kurs' : 'Course'}</Label>
+                  <Select
+                    value={selectedCourseId}
+                    onValueChange={setSelectedCourseId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'pl' ? 'Wybierz kurs' : 'Select course'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>{language === 'pl' ? 'Lekcja' : 'Lesson'}</Label>
                   <Select
                     value={newTask.lessonId}
                     onValueChange={(v) => setNewTask({ ...newTask, lessonId: v })}
+                    disabled={!selectedCourseId}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={language === 'pl' ? 'Wybierz lekcję' : 'Select lesson'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {myLessons.map((lesson) => (
+                      {lessons.map((lesson) => (
                         <SelectItem key={lesson.id} value={lesson.id}>
                           {lesson.title}
                         </SelectItem>
@@ -361,8 +486,8 @@ export default function Teacher() {
                     />
                   </div>
                 )}
-                <Button onClick={handleCreateTask} className="w-full">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button onClick={handleCreateTask} className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   {t('teacher.addTask')}
                 </Button>
               </CardContent>

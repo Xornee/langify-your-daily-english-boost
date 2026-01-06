@@ -33,15 +33,15 @@ import {
 import { useState } from 'react';
 
 export function Navbar() {
-  const { user, isAuthenticated, logout, userStats } = useAuth();
+  const { user, isAuthenticated, logout, userStats, hasRole } = useAuth();
   const { t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -52,11 +52,13 @@ export function Navbar() {
     { path: '/leaderboard', icon: Trophy, label: t('nav.leaderboard') },
   ];
 
-  if (user?.role === 'TEACHER' || user?.role === 'ADMIN') {
+  // Show Teacher link for all authenticated users (they can create courses)
+  if (isAuthenticated) {
     navItems.push({ path: '/teacher', icon: GraduationCap, label: t('nav.teacher') });
   }
 
-  if (user?.role === 'ADMIN') {
+  // Show Admin link for admin users
+  if (hasRole && hasRole('admin')) {
     navItems.push({ path: '/admin', icon: Shield, label: t('nav.admin') });
   }
 
