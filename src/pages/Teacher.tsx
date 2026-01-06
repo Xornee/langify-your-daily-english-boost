@@ -12,10 +12,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useCourses } from '@/hooks/useCourses';
 import { supabase } from '@/integrations/supabase/client';
-import { GraduationCap, Plus, Edit, Loader2, BookOpen, Trash2 } from 'lucide-react';
+import { GraduationCap, Plus, Edit, Loader2, BookOpen, Trash2, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate } from 'react-router-dom';
 import { CourseEditor } from '@/components/teacher/CourseEditor';
+import { StudentStats } from '@/components/teacher/StudentStats';
 import type { Database } from '@/integrations/supabase/types';
 
 type IndustryContext = Database['public']['Enums']['industry_context'];
@@ -211,6 +212,10 @@ export default function Teacher() {
           <TabsList>
             <TabsTrigger value="courses">{t('teacher.myCourses')}</TabsTrigger>
             <TabsTrigger value="create-course">{t('teacher.createCourse')}</TabsTrigger>
+            <TabsTrigger value="statistics">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              {language === 'pl' ? 'Statystyki' : 'Statistics'}
+            </TabsTrigger>
           </TabsList>
 
           {/* My Courses */}
@@ -357,6 +362,11 @@ export default function Teacher() {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Statistics Tab */}
+          <TabsContent value="statistics">
+            <StudentStats />
           </TabsContent>
         </Tabs>
 
