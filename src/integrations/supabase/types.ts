@@ -388,9 +388,63 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      tasks_secure: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          incorrect_answers: string[] | null
+          lesson_id: string | null
+          order_in_lesson: number | null
+          question_extra: string | null
+          question_text: string | null
+          type: Database["public"]["Enums"]["task_type"] | null
+          vocabulary_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          incorrect_answers?: string[] | null
+          lesson_id?: string | null
+          order_in_lesson?: number | null
+          question_extra?: string | null
+          question_text?: string | null
+          type?: Database["public"]["Enums"]["task_type"] | null
+          vocabulary_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          incorrect_answers?: string[] | null
+          lesson_id?: string | null
+          order_in_lesson?: number | null
+          question_extra?: string | null
+          question_text?: string | null
+          type?: Database["public"]["Enums"]["task_type"] | null
+          vocabulary_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_vocabulary_id_fkey"
+            columns: ["vocabulary_id"]
+            isOneToOne: false
+            referencedRelation: "vocabulary_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      check_task_answer: {
+        Args: { p_task_id: string; p_user_answer: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
