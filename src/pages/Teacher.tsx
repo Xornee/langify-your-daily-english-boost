@@ -24,7 +24,7 @@ type Level = Database['public']['Enums']['level'];
 type Course = Database['public']['Tables']['courses']['Row'];
 
 export default function Teacher() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, hasRole } = useAuth();
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const { courses, isLoading: coursesLoading, refetch: refetchCourses } = useCourses();
@@ -60,6 +60,12 @@ export default function Teacher() {
 
   if (!user) {
     return <Navigate to="/auth/login" replace />;
+  }
+
+  // Only teachers (moderator role) and admins can access
+  const isTeacherOrAdmin = hasRole && (hasRole('moderator') || hasRole('admin'));
+  if (!isTeacherOrAdmin) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleCreateCourse = async () => {
