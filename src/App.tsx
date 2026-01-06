@@ -43,7 +43,9 @@ function ProtectedRoute({ children, requiredRoles }: { children: React.ReactNode
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (!hasCompletedOnboarding && window.location.pathname !== '/onboarding') {
+  // Use hash for path check since we're using HashRouter
+  const currentPath = window.location.hash.replace('#', '') || '/';
+  if (!hasCompletedOnboarding && currentPath !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }
 
