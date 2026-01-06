@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useCourses, useCourse } from '@/hooks/useCourses';
 import { supabase } from '@/integrations/supabase/client';
 import { GraduationCap, Plus, Edit, Loader2 } from 'lucide-react';
@@ -24,7 +25,7 @@ export default function Teacher() {
   const { user, isLoading: authLoading } = useAuth();
   const { t, language } = useLanguage();
   const { toast } = useToast();
-  const { courses, isLoading: coursesLoading } = useCourses();
+  const { courses, isLoading: coursesLoading, refetch: refetchCourses } = useCourses();
   
   const [newCourse, setNewCourse] = useState({
     title: '',
@@ -50,8 +51,15 @@ export default function Teacher() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Get lessons for selected course
+  
+  // Edit course state
+  const [editingCourse, setEditingCourse] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    industryTag: IndustryContext;
+    level: Level;
+  } | null>(null);
   const { lessons } = useCourse(selectedCourseId || undefined);
 
   if (authLoading) {
@@ -114,6 +122,47 @@ export default function Teacher() {
     });
   };
 
+  const handleEditCourse = async () => {
+    if (!editingCourse || !editingCourse.title || !editingCourse.description) {
+      toast({
+        title: language === 'pl' ? 'Błąd' : 'Error',
+        description: language === 'pl' ? 'Wypełnij wszystkie pola' : 'Fill in all fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    const { error } = await supabase
+      .from('courses')
+      .update({
+        title: editingCourse.title,
+        description: editingCourse.description,
+        industry_tag: editingCourse.industryTag,
+        level: editingCourse.level,
+      })
+      .eq('id', editingCourse.id);
+    
+    setIsSubmitting(false);
+    
+    if (error) {
+      toast({
+        title: language === 'pl' ? 'Błąd' : 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    toast({
+      title: language === 'pl' ? 'Sukces!' : 'Success!',
+      description: language === 'pl' ? 'Kurs został zaktualizowany' : 'Course updated',
+    });
+    
+    setEditingCourse(null);
+    refetchCourses();
+  };
   const handleCreateLesson = async () => {
     if (!newLesson.title || !newLesson.courseId) {
       toast({
@@ -247,7 +296,17 @@ export default function Teacher() {
                           {course.level}
                         </span>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => setEditingCourse({
+                              id: course.id,
+                              title: course.title,
+                              description: course.description,
+                              industryTag: course.industry_tag || 'general',
+                              level: course.level || 'A2',
+                            })}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                         </div>
@@ -494,6 +553,83 @@ export default function Teacher() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Course Dialog */}
+        <Dialog open={!!editingCourse} onOpenChange={(open) => !open && setEditingCourse(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{language === 'pl' ? 'Edytuj kurs' : 'Edit Course'}</DialogTitle>
+              <DialogDescription>
+                {language === 'pl' ? 'Zaktualizuj szczegóły kursu' : 'Update course details'}
+              </DialogDescription>
+            </DialogHeader>
+            {editingCourse && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>{t('teacher.courseTitle')}</Label>
+                  <Input
+                    value={editingCourse.title}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('teacher.courseDesc')}</Label>
+                  <Textarea
+                    value={editingCourse.description}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>{t('courses.filter.industry')}</Label>
+                    <Select
+                      value={editingCourse.industryTag}
+                      onValueChange={(v) => setEditingCourse({ ...editingCourse, industryTag: v as IndustryContext })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="it">IT</SelectItem>
+                        <SelectItem value="finance">{language === 'pl' ? 'Finanse' : 'Finance'}</SelectItem>
+                        <SelectItem value="office">{language === 'pl' ? 'Biuro' : 'Office'}</SelectItem>
+                        <SelectItem value="general">{language === 'pl' ? 'Ogólne' : 'General'}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('courses.filter.level')}</Label>
+                    <Select
+                      value={editingCourse.level}
+                      onValueChange={(v) => setEditingCourse({ ...editingCourse, level: v as Level })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="A1">A1</SelectItem>
+                        <SelectItem value="A2">A2</SelectItem>
+                        <SelectItem value="B1">B1</SelectItem>
+                        <SelectItem value="B2">B2</SelectItem>
+                        <SelectItem value="C1">C1</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingCourse(null)}>
+                {language === 'pl' ? 'Anuluj' : 'Cancel'}
+              </Button>
+              <Button onClick={handleEditCourse} disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {language === 'pl' ? 'Zapisz' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

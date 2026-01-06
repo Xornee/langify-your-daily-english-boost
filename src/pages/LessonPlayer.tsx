@@ -35,7 +35,7 @@ export default function LessonPlayer() {
 
   const { lesson, tasks, isLoading, error } = useLesson(lessonId);
   const { addToVocabulary } = useUserVocabulary(user?.id);
-  const { createAttempt, completeAttempt } = useLessonAttempt();
+  const { createAttempt, completeAttempt, checkLessonCompleted } = useLessonAttempt();
 
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
@@ -45,18 +45,24 @@ export default function LessonPlayer() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
   const currentTask = tasks[currentTaskIndex];
   const progress = tasks.length > 0 ? ((currentTaskIndex) / tasks.length) * 100 : 0;
 
-  // Create attempt when lesson starts
+  // Check if lesson was already completed and create attempt
   useEffect(() => {
     if (lesson && user && !attemptId) {
+      // Check if already completed
+      checkLessonCompleted(user.id, lesson.id).then(completed => {
+        setAlreadyCompleted(completed);
+      });
+      // Create new attempt
       createAttempt(user.id, lesson.id).then(id => {
         if (id) setAttemptId(id);
       });
     }
-  }, [lesson, user, attemptId, createAttempt]);
+  }, [lesson, user, attemptId, createAttempt, checkLessonCompleted]);
 
   useEffect(() => {
     // Reset state when task changes
@@ -132,8 +138,11 @@ export default function LessonPlayer() {
         await completeAttempt(attemptId, scorePercent, tasks.length, correctCount, xpEarned);
       }
       
-      await addXp(xpEarned);
-      await completeLesson();
+      // Only award XP if not already completed
+      if (!alreadyCompleted) {
+        await addXp(xpEarned);
+        await completeLesson();
+      }
       setIsComplete(true);
     }
   };
@@ -152,7 +161,7 @@ export default function LessonPlayer() {
   // Complete screen
   if (isComplete) {
     const scorePercent = Math.round((correctCount / tasks.length) * 100);
-    const xpEarned = Math.round(10 + (scorePercent / 100) * 40);
+    const xpEarned = alreadyCompleted ? 0 : Math.round(10 + (scorePercent / 100) * 40);
 
     return (
       <Layout showFooter={false}>
@@ -166,6 +175,12 @@ export default function LessonPlayer() {
               <h2 className="text-2xl font-bold text-foreground mb-2">
                 {language === 'pl' ? 'Lekcja ukończona!' : 'Lesson complete!'}
               </h2>
+
+              {alreadyCompleted && (
+                <p className="text-sm text-muted-foreground mb-4">
+                  {language === 'pl' ? '(Powtórka - bez XP)' : '(Review - no XP)'}
+                </p>
+              )}
               
               <div className="my-6 space-y-4">
                 <div className="flex justify-between items-center p-4 rounded-lg bg-accent/50">
