@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -109,10 +109,17 @@ export default function LessonPlayer() {
     }
   };
 
-  const getShuffledAnswers = (task: Task): string[] => {
-    const answers = [task.correctAnswer, ...task.incorrectAnswers];
-    return answers.sort(() => Math.random() - 0.5);
-  };
+  // Memoize shuffled answers to prevent re-shuffling on re-render
+  const shuffledAnswers = useMemo(() => {
+    if (!currentTask || currentTask.type === 'FLASHCARD') return [];
+    const answers = [currentTask.correctAnswer, ...currentTask.incorrectAnswers];
+    // Fisher-Yates shuffle for consistent randomization
+    for (let i = answers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [answers[i], answers[j]] = [answers[j], answers[i]];
+    }
+    return answers;
+  }, [currentTask?.id]);
 
   // Complete screen
   if (isComplete) {
@@ -256,7 +263,7 @@ export default function LessonPlayer() {
               </Card>
 
               <div className="grid gap-3">
-                {getShuffledAnswers(currentTask).map((answer, index) => {
+                {shuffledAnswers.map((answer, index) => {
                   let buttonClass = 'justify-start h-auto py-4 px-4 text-left';
                   
                   if (answerState !== 'pending') {
