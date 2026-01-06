@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTeacherStats } from '@/hooks/useTeacherStats';
+import { StudentDetailPanel } from './StudentDetailPanel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,7 +24,7 @@ export function StudentStats() {
   const { language } = useLanguage();
   const { students, courseStats, studentProgress, isLoading } = useTeacherStats();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -33,15 +34,23 @@ export function StudentStats() {
     );
   }
 
+  // If a student is selected, show the detail panel
+  const selectedStudent = students.find(s => s.id === selectedStudentId);
+  if (selectedStudent) {
+    const selectedStudentProgress = studentProgress.filter(p => p.studentId === selectedStudentId);
+    return (
+      <StudentDetailPanel 
+        student={selectedStudent}
+        studentProgress={selectedStudentProgress}
+        onBack={() => setSelectedStudentId(null)}
+      />
+    );
+  }
+
   const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const selectedStudentProgress = selectedStudent
-    ? studentProgress.filter(p => p.studentId === selectedStudent)
-    : [];
-
   // Summary stats
   const totalStudents = students.length;
   const activeStudents = students.filter(s => s.lastActive && 
@@ -155,7 +164,7 @@ export function StudentStats() {
                     <TableRow 
                       key={student.id} 
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedStudent(student.id === selectedStudent ? null : student.id)}
+                      onClick={() => setSelectedStudentId(student.id)}
                     >
                       <TableCell>
                         <div>
