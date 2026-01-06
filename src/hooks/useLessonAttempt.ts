@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export function useLessonAttempt() {
@@ -48,5 +49,58 @@ export function useLessonAttempt() {
     return true;
   };
 
-  return { createAttempt, completeAttempt };
+  const checkLessonCompleted = async (
+    userId: string,
+    lessonId: string
+  ): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('lesson_attempts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('lesson_id', lessonId)
+      .not('completed_at', 'is', null)
+      .limit(1);
+
+    if (error) {
+      console.error('Error checking lesson completion:', error);
+      return false;
+    }
+
+    return (data?.length ?? 0) > 0;
+  };
+
+  return { createAttempt, completeAttempt, checkLessonCompleted };
+}
+
+// Hook to get all completed lesson IDs for a user
+export function useCompletedLessons(userId: string | undefined) {
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchCompletedLessons = useCallback(async () => {
+    if (!userId) {
+      setCompletedLessonIds(new Set());
+      setIsLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('lesson_attempts')
+      .select('lesson_id')
+      .eq('user_id', userId)
+      .not('completed_at', 'is', null);
+
+    if (error) {
+      console.error('Error fetching completed lessons:', error);
+    } else {
+      setCompletedLessonIds(new Set(data?.map(d => d.lesson_id) ?? []));
+    }
+    setIsLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    fetchCompletedLessons();
+  }, [fetchCompletedLessons]);
+
+  return { completedLessonIds, isLoading, refetch: fetchCompletedLessons };
 }

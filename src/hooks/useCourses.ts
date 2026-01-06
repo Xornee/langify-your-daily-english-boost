@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -14,39 +14,39 @@ export function useCourses(industryFilter?: string, levelFilter?: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchCourses = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      let query = supabase
-        .from('courses')
-        .select('*')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
-      
-      if (industryFilter && industryFilter !== 'all') {
-        query = query.eq('industry_tag', industryFilter as IndustryTag);
-      }
-      
-      if (levelFilter && levelFilter !== 'all') {
-        query = query.eq('level', levelFilter as Level);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        setError(error.message);
-      } else {
-        setCourses(data || []);
-      }
-      setIsLoading(false);
-    };
-
-    fetchCourses();
+  const fetchCourses = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    let query = supabase
+      .from('courses')
+      .select('*')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false });
+    
+    if (industryFilter && industryFilter !== 'all') {
+      query = query.eq('industry_tag', industryFilter as IndustryTag);
+    }
+    
+    if (levelFilter && levelFilter !== 'all') {
+      query = query.eq('level', levelFilter as Level);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      setCourses(data || []);
+    }
+    setIsLoading(false);
   }, [industryFilter, levelFilter]);
 
-  return { courses, isLoading, error };
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
+
+  return { courses, isLoading, error, refetch: fetchCourses };
 }
 
 export function useCourse(courseId: string | undefined) {
