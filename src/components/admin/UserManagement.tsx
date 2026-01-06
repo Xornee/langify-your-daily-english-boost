@@ -169,7 +169,7 @@ export function UserManagement() {
       case 'admin':
         return language === 'pl' ? 'Administrator' : 'Admin';
       case 'moderator':
-        return language === 'pl' ? 'Moderator' : 'Moderator';
+        return language === 'pl' ? 'Nauczyciel' : 'Teacher';
       default:
         return language === 'pl' ? 'Użytkownik' : 'User';
     }
@@ -249,7 +249,7 @@ export function UserManagement() {
                       </SelectItem>
                       <SelectItem value="moderator">
                         <div className="flex items-center gap-2">
-                          <Badge variant="default">{language === 'pl' ? 'Moderator' : 'Moderator'}</Badge>
+                          <Badge variant="default">{language === 'pl' ? 'Nauczyciel' : 'Teacher'}</Badge>
                         </div>
                       </SelectItem>
                       <SelectItem value="admin">
