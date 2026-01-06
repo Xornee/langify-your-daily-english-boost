@@ -52,8 +52,8 @@ export function Navbar() {
     { path: '/leaderboard', icon: Trophy, label: t('nav.leaderboard') },
   ];
 
-  // Show Teacher link for teachers (moderator role) and admins
-  if (hasRole && (hasRole('moderator') || hasRole('admin'))) {
+  // Show Teacher link for teachers and admins
+  if (hasRole && (hasRole('teacher') || hasRole('admin'))) {
     navItems.push({ path: '/teacher', icon: GraduationCap, label: t('nav.teacher') });
   }
 

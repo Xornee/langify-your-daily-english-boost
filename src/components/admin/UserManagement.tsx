@@ -157,7 +157,7 @@ export function UserManagement() {
     switch (role) {
       case 'admin':
         return 'destructive';
-      case 'moderator':
+      case 'teacher':
         return 'default';
       default:
         return 'secondary';
@@ -168,7 +168,7 @@ export function UserManagement() {
     switch (role) {
       case 'admin':
         return language === 'pl' ? 'Administrator' : 'Admin';
-      case 'moderator':
+      case 'teacher':
         return language === 'pl' ? 'Nauczyciel' : 'Teacher';
       default:
         return language === 'pl' ? 'Użytkownik' : 'User';
@@ -247,7 +247,7 @@ export function UserManagement() {
                           <Badge variant="secondary">{language === 'pl' ? 'Użytkownik' : 'User'}</Badge>
                         </div>
                       </SelectItem>
-                      <SelectItem value="moderator">
+                      <SelectItem value="teacher">
                         <div className="flex items-center gap-2">
                           <Badge variant="default">{language === 'pl' ? 'Nauczyciel' : 'Teacher'}</Badge>
                         </div>

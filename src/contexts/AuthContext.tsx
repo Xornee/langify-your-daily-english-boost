@@ -31,17 +31,17 @@ interface AuthContextType {
   completeLesson: () => Promise<void>;
   hasCompletedOnboarding: boolean;
   completeOnboarding: () => void;
-  hasRole: (role: 'admin' | 'moderator' | 'user') => boolean;
+  hasRole: (role: 'admin' | 'teacher' | 'user') => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function mapProfileToUser(profile: Profile | null, hasRole: (role: 'admin' | 'moderator' | 'user') => boolean): User | null {
+function mapProfileToUser(profile: Profile | null, hasRole: (role: 'admin' | 'teacher' | 'user') => boolean): User | null {
   if (!profile) return null;
   
   let role: 'USER' | 'TEACHER' | 'ADMIN' = 'USER';
   if (hasRole('admin')) role = 'ADMIN';
-  else if (hasRole('moderator')) role = 'TEACHER';
+  else if (hasRole('teacher')) role = 'TEACHER';
   
   return {
     id: profile.id,
