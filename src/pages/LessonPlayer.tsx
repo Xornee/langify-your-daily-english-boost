@@ -6,10 +6,9 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { useLesson } from '@/hooks/useCourses';
+import { useLesson, checkTaskAnswer, type SecureTask } from '@/hooks/useCourses';
 import { useUserVocabulary } from '@/hooks/useUserVocabulary';
 import { useLessonAttempt } from '@/hooks/useLessonAttempt';
-import type { Database } from '@/integrations/supabase/types';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -23,7 +22,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-type Task = Database['public']['Tables']['tasks']['Row'];
 type AnswerState = 'pending' | 'correct' | 'incorrect';
 
 export default function LessonPlayer() {
@@ -46,6 +44,8 @@ export default function LessonPlayer() {
   const [isComplete, setIsComplete] = useState(false);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [isCheckingAnswer, setIsCheckingAnswer] = useState(false);
+  const [revealedAnswer, setRevealedAnswer] = useState<string | null>(null);
 
   const currentTask = tasks[currentTaskIndex];
   const progress = tasks.length > 0 ? ((currentTaskIndex) / tasks.length) * 100 : 0;
@@ -69,6 +69,7 @@ export default function LessonPlayer() {
     setSelectedAnswer(null);
     setAnswerState('pending');
     setIsFlipped(false);
+    setRevealedAnswer(null);
   }, [currentTaskIndex]);
 
   // Memoize shuffled answers to prevent re-shuffling on re-render
@@ -108,21 +109,37 @@ export default function LessonPlayer() {
     );
   }
 
-  const handleCheckAnswer = () => {
+  const handleCheckAnswer = async () => {
     if (!selectedAnswer || !currentTask) return;
     
-    const isCorrect = selectedAnswer === currentTask.correct_answer;
+    setIsCheckingAnswer(true);
+    
+    // Use secure RPC to check answer
+    const result = await checkTaskAnswer(currentTask.id, selectedAnswer);
+    
+    setRevealedAnswer(result.correct_answer);
+    const isCorrect = result.is_correct;
     setAnswerState(isCorrect ? 'correct' : 'incorrect');
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
     }
+    
+    setIsCheckingAnswer(false);
   };
 
-  const handleFlashcardKnow = (knows: boolean) => {
+  const handleFlashcardKnow = async (knows: boolean) => {
+    setIsCheckingAnswer(true);
+    
+    // For flashcards, we need to get the correct answer to display
+    const result = await checkTaskAnswer(currentTask.id, '');
+    setRevealedAnswer(result.correct_answer);
+    
     setAnswerState(knows ? 'correct' : 'incorrect');
     if (knows) {
       setCorrectCount(prev => prev + 1);
     }
+    
+    setIsCheckingAnswer(false);
   };
 
   const handleNext = async () => {
@@ -268,7 +285,7 @@ export default function LessonPlayer() {
                       </>
                     ) : (
                       <p className="text-3xl font-bold text-primary">
-                        {currentTask.correct_answer}
+                        {revealedAnswer || '...'}
                       </p>
                     )}
                   </CardContent>
@@ -310,8 +327,8 @@ export default function LessonPlayer() {
                 {shuffledAnswers.map((answer, index) => {
                   let buttonClass = 'justify-start h-auto py-4 px-4 text-left';
                   
-                  if (answerState !== 'pending') {
-                    if (answer === currentTask.correct_answer) {
+                  if (answerState !== 'pending' && revealedAnswer) {
+                    if (answer === revealedAnswer) {
                       buttonClass += ' bg-green-500/10 border-green-500 text-green-700 dark:text-green-400';
                     } else if (answer === selectedAnswer && answerState === 'incorrect') {
                       buttonClass += ' bg-destructive/10 border-destructive text-destructive';
@@ -329,7 +346,7 @@ export default function LessonPlayer() {
                       disabled={answerState !== 'pending'}
                     >
                       <span className="font-medium">{answer}</span>
-                      {answerState !== 'pending' && answer === currentTask.correct_answer && (
+                      {answerState !== 'pending' && revealedAnswer && answer === revealedAnswer && (
                         <Check className="ml-auto h-5 w-5 text-green-500" />
                       )}
                       {answerState === 'incorrect' && answer === selectedAnswer && (
@@ -362,9 +379,9 @@ export default function LessonPlayer() {
                 </span>
               </div>
               
-              {answerState === 'incorrect' && currentTask.type !== 'FLASHCARD' && (
+              {answerState === 'incorrect' && currentTask.type !== 'FLASHCARD' && revealedAnswer && (
                 <p className="text-sm text-muted-foreground">
-                  {t('lesson.correctAnswer')}: <span className="font-medium text-foreground">{currentTask.correct_answer}</span>
+                  {t('lesson.correctAnswer')}: <span className="font-medium text-foreground">{revealedAnswer}</span>
                 </p>
               )}
 
@@ -399,8 +416,9 @@ export default function LessonPlayer() {
               <Button 
                 className="w-full h-14 text-lg"
                 onClick={handleCheckAnswer}
-                disabled={!selectedAnswer}
+                disabled={!selectedAnswer || isCheckingAnswer}
               >
+                {isCheckingAnswer ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
                 {t('lesson.check')}
               </Button>
             ) : answerState !== 'pending' && (
