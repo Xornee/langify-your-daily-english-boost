@@ -9,6 +9,9 @@ type VocabularyItem = Database['public']['Tables']['vocabulary_items']['Row'];
 type IndustryTag = Database['public']['Enums']['industry_context'];
 type Level = Database['public']['Enums']['level'];
 
+// Secure task type without correct_answer (for students)
+export type SecureTask = Omit<Task, 'correct_answer'>;
+
 export function useCourses(industryFilter?: string, levelFilter?: string) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,7 +105,7 @@ export function useCourse(courseId: string | undefined) {
 
 export function useLesson(lessonId: string | undefined) {
   const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<SecureTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,8 +133,9 @@ export function useLesson(lessonId: string | undefined) {
       
       setLesson(lessonData);
       
+      // Use the secure view that doesn't expose correct_answer
       const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
+        .from('tasks_secure')
         .select('*')
         .eq('lesson_id', lessonId)
         .order('order_in_lesson', { ascending: true });
@@ -139,7 +143,7 @@ export function useLesson(lessonId: string | undefined) {
       if (tasksError) {
         setError(tasksError.message);
       } else {
-        setTasks(tasksData || []);
+        setTasks((tasksData || []) as SecureTask[]);
       }
       
       setIsLoading(false);
@@ -149,6 +153,25 @@ export function useLesson(lessonId: string | undefined) {
   }, [lessonId]);
 
   return { lesson, tasks, isLoading, error };
+}
+
+// Function to check answer using secure RPC
+export async function checkTaskAnswer(taskId: string, userAnswer: string): Promise<{
+  is_correct: boolean;
+  correct_answer: string;
+  error?: string;
+}> {
+  const { data, error } = await supabase.rpc('check_task_answer', {
+    p_task_id: taskId,
+    p_user_answer: userAnswer
+  });
+  
+  if (error) {
+    console.error('Error checking answer:', error);
+    return { is_correct: false, correct_answer: '', error: error.message };
+  }
+  
+  return data as { is_correct: boolean; correct_answer: string };
 }
 
 export function useVocabularyItem(vocabularyId: string | undefined) {
