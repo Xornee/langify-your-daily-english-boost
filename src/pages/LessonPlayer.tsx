@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -6,7 +6,7 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { useLesson, checkTaskAnswer, type SecureTask } from '@/hooks/useCourses';
+import { useLesson, checkTaskAnswer, getTaskOptions, type SecureTask } from '@/hooks/useCourses';
 import { useUserVocabulary } from '@/hooks/useUserVocabulary';
 import { useLessonAttempt } from '@/hooks/useLessonAttempt';
 import { 
@@ -70,19 +70,18 @@ export default function LessonPlayer() {
     setAnswerState('pending');
     setIsFlipped(false);
     setRevealedAnswer(null);
-  }, [currentTaskIndex]);
-
-  // Memoize shuffled answers to prevent re-shuffling on re-render
-  const shuffledAnswers = useMemo(() => {
-    if (!currentTask || currentTask.type === 'FLASHCARD') return [];
-    const answers = [currentTask.correct_answer, ...(currentTask.incorrect_answers || [])];
-    // Fisher-Yates shuffle for consistent randomization
-    for (let i = answers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [answers[i], answers[j]] = [answers[j], answers[i]];
+    setShuffledAnswers([]);
+    
+    // Fetch shuffled options for multiple choice tasks
+    if (currentTask && currentTask.type !== 'FLASHCARD') {
+      getTaskOptions(currentTask.id).then(options => {
+        setShuffledAnswers(options);
+      });
     }
-    return answers;
-  }, [currentTask?.id]);
+  }, [currentTaskIndex, currentTask?.id]);
+
+  // State for shuffled answers (fetched securely from server)
+  const [shuffledAnswers, setShuffledAnswers] = useState<string[]>([]);
 
   if (isLoading) {
     return (

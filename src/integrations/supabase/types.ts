@@ -445,6 +445,7 @@ export type Database = {
         Args: { p_task_id: string; p_user_answer: string }
         Returns: Json
       }
+      get_task_options: { Args: { p_task_id: string }; Returns: string[] }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
