@@ -174,6 +174,20 @@ export async function checkTaskAnswer(taskId: string, userAnswer: string): Promi
   return data as { is_correct: boolean; correct_answer: string };
 }
 
+// Function to get shuffled task options securely
+export async function getTaskOptions(taskId: string): Promise<string[]> {
+  const { data, error } = await supabase.rpc('get_task_options', {
+    p_task_id: taskId
+  });
+  
+  if (error) {
+    console.error('Error getting task options:', error);
+    return [];
+  }
+  
+  return (data || []) as string[];
+}
+
 export function useVocabularyItem(vocabularyId: string | undefined) {
   const [vocabularyItem, setVocabularyItem] = useState<VocabularyItem | null>(null);
 
