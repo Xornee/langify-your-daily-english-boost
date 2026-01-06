@@ -1,57 +1,57 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { vocabularyItems } from '@/data/courses';
-import type { VocabularyItem } from '@/types';
-import { BookMarked, Search, Trash2, RotateCcw, Check, X, BookOpen } from 'lucide-react';
+import { useUserVocabulary } from '@/hooks/useUserVocabulary';
+import { BookMarked, Search, Trash2, RotateCcw, Check, X, BookOpen, Loader2 } from 'lucide-react';
 
 export default function MyWords() {
   const { t, language } = useLanguage();
-  const [userWords, setUserWords] = useState<VocabularyItem[]>([]);
+  const { user } = useAuth();
+  const { vocabulary, isLoading, removeFromVocabulary, updateStrength } = useUserVocabulary(user?.id);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [isPracticing, setIsPracticing] = useState(false);
   const [practiceIndex, setPracticeIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [practiceResults, setPracticeResults] = useState<{ correct: number; incorrect: number }>({ correct: 0, incorrect: 0 });
 
-  useEffect(() => {
-    const savedWordIds = JSON.parse(localStorage.getItem('langify-vocabulary') || '[]');
-    const words = savedWordIds
-      .map((id: string) => vocabularyItems.find(v => v.id === id))
-      .filter(Boolean) as VocabularyItem[];
-    setUserWords(words);
-  }, []);
-
-  const filteredWords = userWords.filter(word =>
-    word.englishWordOrPhrase.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    word.translation.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredWords = vocabulary.filter(item =>
+    item.vocabulary_items.english_word_or_phrase.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.vocabulary_items.translation.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleRemoveWord = (wordId: string) => {
-    const savedWordIds = JSON.parse(localStorage.getItem('langify-vocabulary') || '[]');
-    const newWordIds = savedWordIds.filter((id: string) => id !== wordId);
-    localStorage.setItem('langify-vocabulary', JSON.stringify(newWordIds));
-    setUserWords(prev => prev.filter(w => w.id !== wordId));
+  const handleRemoveWord = async (vocabularyId: string) => {
+    await removeFromVocabulary(vocabularyId);
   };
 
   const startPractice = () => {
-    if (userWords.length === 0) return;
+    if (vocabulary.length === 0) return;
     setIsPracticing(true);
     setPracticeIndex(0);
     setIsFlipped(false);
     setPracticeResults({ correct: 0, incorrect: 0 });
   };
 
-  const handlePracticeAnswer = (correct: boolean) => {
+  const handlePracticeAnswer = async (correct: boolean) => {
+    const currentItem = vocabulary[practiceIndex];
+    
+    // Update strength in database
+    const newStrength = correct 
+      ? Math.min((currentItem.strength || 0) + 1, 5)
+      : Math.max((currentItem.strength || 0) - 1, 0);
+    
+    await updateStrength(currentItem.vocabulary_id, newStrength);
+    
     setPracticeResults(prev => ({
       correct: prev.correct + (correct ? 1 : 0),
       incorrect: prev.incorrect + (correct ? 0 : 1),
     }));
 
-    if (practiceIndex < userWords.length - 1) {
+    if (practiceIndex < vocabulary.length - 1) {
       setPracticeIndex(prev => prev + 1);
       setIsFlipped(false);
     } else {
@@ -60,8 +60,18 @@ export default function MyWords() {
     }
   };
 
-  if (isPracticing && userWords.length > 0) {
-    const currentWord = userWords[practiceIndex];
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isPracticing && vocabulary.length > 0) {
+    const currentItem = vocabulary[practiceIndex];
 
     return (
       <Layout showFooter={false}>
@@ -72,7 +82,7 @@ export default function MyWords() {
                 {t('common.back')}
               </Button>
               <span className="text-muted-foreground">
-                {practiceIndex + 1}/{userWords.length}
+                {practiceIndex + 1}/{vocabulary.length}
               </span>
             </div>
 
@@ -84,7 +94,7 @@ export default function MyWords() {
                 {!isFlipped ? (
                   <>
                     <p className="text-3xl font-bold text-foreground mb-4">
-                      {currentWord.englishWordOrPhrase}
+                      {currentItem.vocabulary_items.english_word_or_phrase}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {t('lesson.flipCard')} 👆
@@ -93,10 +103,10 @@ export default function MyWords() {
                 ) : (
                   <>
                     <p className="text-3xl font-bold text-primary mb-4">
-                      {currentWord.translation}
+                      {currentItem.vocabulary_items.translation}
                     </p>
                     <p className="text-sm text-muted-foreground italic">
-                      {currentWord.exampleSentence}
+                      {currentItem.vocabulary_items.example_sentence}
                     </p>
                   </>
                 )}
@@ -135,10 +145,10 @@ export default function MyWords() {
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">{t('myWords.title')}</h1>
             <p className="text-muted-foreground">
-              {userWords.length} {language === 'pl' ? 'słówek' : 'words'}
+              {vocabulary.length} {language === 'pl' ? 'słówek' : 'words'}
             </p>
           </div>
-          {userWords.length > 0 && (
+          {vocabulary.length > 0 && (
             <Button onClick={startPractice}>
               <RotateCcw className="mr-2 h-4 w-4" />
               {t('myWords.practice')}
@@ -146,7 +156,7 @@ export default function MyWords() {
           )}
         </div>
 
-        {userWords.length > 0 && (
+        {vocabulary.length > 0 && (
           <div className="relative mb-6">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -158,7 +168,7 @@ export default function MyWords() {
           </div>
         )}
 
-        {userWords.length === 0 ? (
+        {vocabulary.length === 0 ? (
           <div className="text-center py-16">
             <BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-xl text-muted-foreground mb-2">{t('myWords.empty')}</p>
@@ -170,31 +180,31 @@ export default function MyWords() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredWords.map((word) => (
-              <Card key={word.id} className="group">
+            {filteredWords.map((item) => (
+              <Card key={item.id} className="group">
                 <CardContent className="pt-6">
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="text-lg font-semibold text-foreground">
-                        {word.englishWordOrPhrase}
+                        {item.vocabulary_items.english_word_or_phrase}
                       </p>
-                      <p className="text-primary font-medium">{word.translation}</p>
+                      <p className="text-primary font-medium">{item.vocabulary_items.translation}</p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemoveWord(word.id)}
+                      onClick={() => handleRemoveWord(item.vocabulary_id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground italic">
-                    {word.exampleSentence}
+                    {item.vocabulary_items.example_sentence}
                   </p>
-                  {word.industryTag && (
+                  {item.vocabulary_items.industry_tag && (
                     <span className="inline-block mt-2 text-xs bg-accent text-accent-foreground px-2 py-1 rounded-full">
-                      {word.industryTag}
+                      {item.vocabulary_items.industry_tag}
                     </span>
                   )}
                 </CardContent>

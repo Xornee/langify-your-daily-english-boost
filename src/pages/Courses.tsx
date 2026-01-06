@@ -1,20 +1,19 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { courses, getLessonsForCourse } from '@/data/courses';
-import type { IndustryContext, Level } from '@/types';
-import { Clock, BookOpen, ChevronRight } from 'lucide-react';
+import { useCourses } from '@/hooks/useCourses';
+import { Clock, BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 
 export default function Courses() {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
   const [industryFilter, setIndustryFilter] = useState<string>('all');
   const [levelFilter, setLevelFilter] = useState<string>('all');
+  
+  const { courses, isLoading, error } = useCourses(industryFilter, levelFilter);
 
   const industryOptions = [
     { value: 'all', label: t('courses.all') },
@@ -33,13 +32,7 @@ export default function Courses() {
     { value: 'C1', label: 'C1' },
   ];
 
-  const filteredCourses = courses.filter((course) => {
-    const matchesIndustry = industryFilter === 'all' || course.industryTag === industryFilter;
-    const matchesLevel = levelFilter === 'all' || course.level === levelFilter;
-    return matchesIndustry && matchesLevel;
-  });
-
-  const industryColors: Record<IndustryContext, string> = {
+  const industryColors: Record<string, string> = {
     it: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
     finance: 'bg-green-500/10 text-green-600 dark:text-green-400',
     office: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
@@ -93,59 +86,71 @@ export default function Courses() {
           </div>
         </div>
 
-        {/* Course Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCourses.map((course) => (
-            <Card key={course.id} className="hover:shadow-lg transition-all group">
-              <CardHeader>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${industryColors[course.industryTag]}`}>
-                    {industryOptions.find(o => o.value === course.industryTag)?.label || course.industryTag}
-                  </span>
-                  <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
-                    {course.level}
-                  </span>
-                </div>
-                <CardTitle className="text-xl group-hover:text-primary transition-colors">
-                  {course.title}
-                </CardTitle>
-                <CardDescription className="line-clamp-3">
-                  {course.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="h-4 w-4" />
-                      {course.lessonsCount} {t('courses.lessons')}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {course.estimatedMinutes} {t('courses.minutes')}
-                    </div>
-                  </div>
-                </div>
-                <Button className="w-full group-hover:bg-primary" asChild>
-                  <Link to={`/courses/${course.id}`}>
-                    {t('courses.start')}
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {filteredCourses.length === 0 && (
-          <div className="text-center py-12">
-            <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
-              {language === 'pl'
-                ? 'Nie znaleziono kursów dla wybranych filtrów'
-                : 'No courses found for selected filters'}
-            </p>
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-destructive">{error}</p>
+          </div>
+        ) : (
+          <>
+            {/* Course Grid */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {courses.map((course) => (
+                <Card key={course.id} className="hover:shadow-lg transition-all group">
+                  <CardHeader>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${industryColors[course.industry_tag || 'general']}`}>
+                        {industryOptions.find(o => o.value === course.industry_tag)?.label || course.industry_tag}
+                      </span>
+                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
+                        {course.level}
+                      </span>
+                    </div>
+                    <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                      {course.title}
+                    </CardTitle>
+                    <CardDescription className="line-clamp-3">
+                      {course.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <BookOpen className="h-4 w-4" />
+                          {course.lessons_count} {t('courses.lessons')}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          {course.estimated_minutes} {t('courses.minutes')}
+                        </div>
+                      </div>
+                    </div>
+                    <Button className="w-full group-hover:bg-primary" asChild>
+                      <Link to={`/courses/${course.id}`}>
+                        {t('courses.start')}
+                        <ChevronRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {courses.length === 0 && (
+              <div className="text-center py-12">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  {language === 'pl'
+                    ? 'Nie znaleziono kursów dla wybranych filtrów'
+                    : 'No courses found for selected filters'}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </Layout>

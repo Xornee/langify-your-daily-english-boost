@@ -6,8 +6,10 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { lessons, getTasksForLesson, getVocabularyItem } from '@/data/courses';
-import type { Task } from '@/types';
+import { useLesson } from '@/hooks/useCourses';
+import { useUserVocabulary } from '@/hooks/useUserVocabulary';
+import { useLessonAttempt } from '@/hooks/useLessonAttempt';
+import type { Database } from '@/integrations/supabase/types';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -16,22 +18,26 @@ import {
   RotateCcw,
   Trophy,
   Plus,
-  BookMarked
+  BookMarked,
+  Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+type Task = Database['public']['Tables']['tasks']['Row'];
 type AnswerState = 'pending' | 'correct' | 'incorrect';
 
 export default function LessonPlayer() {
   const { lessonId } = useParams();
   const navigate = useNavigate();
-  const { addXp, completLesson } = useAuth();
+  const { addXp, completeLesson, user } = useAuth();
   const { t, language } = useLanguage();
   const { toast } = useToast();
 
-  const lesson = lessons.find((l) => l.id === lessonId);
-  const tasks = lesson ? getTasksForLesson(lesson.id) : [];
+  const { lesson, tasks, isLoading, error } = useLesson(lessonId);
+  const { addToVocabulary } = useUserVocabulary(user?.id);
+  const { createAttempt, completeAttempt } = useLessonAttempt();
 
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerState, setAnswerState] = useState<AnswerState>('pending');
@@ -41,7 +47,16 @@ export default function LessonPlayer() {
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
 
   const currentTask = tasks[currentTaskIndex];
-  const progress = ((currentTaskIndex) / tasks.length) * 100;
+  const progress = tasks.length > 0 ? ((currentTaskIndex) / tasks.length) * 100 : 0;
+
+  // Create attempt when lesson starts
+  useEffect(() => {
+    if (lesson && user && !attemptId) {
+      createAttempt(user.id, lesson.id).then(id => {
+        if (id) setAttemptId(id);
+      });
+    }
+  }, [lesson, user, attemptId, createAttempt]);
 
   useEffect(() => {
     // Reset state when task changes
@@ -49,6 +64,28 @@ export default function LessonPlayer() {
     setAnswerState('pending');
     setIsFlipped(false);
   }, [currentTaskIndex]);
+
+  // Memoize shuffled answers to prevent re-shuffling on re-render
+  const shuffledAnswers = useMemo(() => {
+    if (!currentTask || currentTask.type === 'FLASHCARD') return [];
+    const answers = [currentTask.correct_answer, ...(currentTask.incorrect_answers || [])];
+    // Fisher-Yates shuffle for consistent randomization
+    for (let i = answers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [answers[i], answers[j]] = [answers[j], answers[i]];
+    }
+    return answers;
+  }, [currentTask?.id]);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
 
   if (!lesson || tasks.length === 0) {
     return (
@@ -66,9 +103,9 @@ export default function LessonPlayer() {
   }
 
   const handleCheckAnswer = () => {
-    if (!selectedAnswer) return;
+    if (!selectedAnswer || !currentTask) return;
     
-    const isCorrect = selectedAnswer === currentTask.correctAnswer;
+    const isCorrect = selectedAnswer === currentTask.correct_answer;
     setAnswerState(isCorrect ? 'correct' : 'incorrect');
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
@@ -82,7 +119,7 @@ export default function LessonPlayer() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentTaskIndex < tasks.length - 1) {
       setCurrentTaskIndex(prev => prev + 1);
     } else {
@@ -90,17 +127,20 @@ export default function LessonPlayer() {
       const scorePercent = Math.round((correctCount / tasks.length) * 100);
       const xpEarned = Math.round(10 + (scorePercent / 100) * 40); // 10-50 XP based on score
       
-      addXp(xpEarned);
-      completLesson();
+      // Save attempt
+      if (attemptId) {
+        await completeAttempt(attemptId, scorePercent, tasks.length, correctCount, xpEarned);
+      }
+      
+      await addXp(xpEarned);
+      await completeLesson();
       setIsComplete(true);
     }
   };
 
-  const handleAddToVocabulary = (vocabularyId: string) => {
-    const existingWords = JSON.parse(localStorage.getItem('langify-vocabulary') || '[]');
-    if (!existingWords.includes(vocabularyId)) {
-      existingWords.push(vocabularyId);
-      localStorage.setItem('langify-vocabulary', JSON.stringify(existingWords));
+  const handleAddToVocabulary = async (vocabularyId: string) => {
+    const success = await addToVocabulary(vocabularyId);
+    if (success) {
       setAddedWords(prev => new Set(prev).add(vocabularyId));
       toast({
         title: language === 'pl' ? 'Dodano!' : 'Added!',
@@ -108,18 +148,6 @@ export default function LessonPlayer() {
       });
     }
   };
-
-  // Memoize shuffled answers to prevent re-shuffling on re-render
-  const shuffledAnswers = useMemo(() => {
-    if (!currentTask || currentTask.type === 'FLASHCARD') return [];
-    const answers = [currentTask.correctAnswer, ...currentTask.incorrectAnswers];
-    // Fisher-Yates shuffle for consistent randomization
-    for (let i = answers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [answers[i], answers[j]] = [answers[j], answers[i]];
-    }
-    return answers;
-  }, [currentTask?.id]);
 
   // Complete screen
   if (isComplete) {
@@ -157,13 +185,14 @@ export default function LessonPlayer() {
               </div>
 
               <div className="space-y-3">
-                <Button className="w-full" onClick={() => navigate(`/courses/${lesson.courseId}`)}>
+                <Button className="w-full" onClick={() => navigate(`/courses/${lesson.course_id}`)}>
                   {t('lesson.backToCourse')}
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => {
                   setCurrentTaskIndex(0);
                   setCorrectCount(0);
                   setIsComplete(false);
+                  setAttemptId(null);
                 }}>
                   <RotateCcw className="mr-2 h-4 w-4" />
                   {t('lesson.tryAgain')}
@@ -213,10 +242,10 @@ export default function LessonPlayer() {
                     {!isFlipped ? (
                       <>
                         <p className="text-3xl font-bold text-foreground mb-2">
-                          {currentTask.questionText}
+                          {currentTask.question_text}
                         </p>
-                        {currentTask.questionExtra && (
-                          <p className="text-muted-foreground">{currentTask.questionExtra}</p>
+                        {currentTask.question_extra && (
+                          <p className="text-muted-foreground">{currentTask.question_extra}</p>
                         )}
                         <p className="mt-4 text-sm text-muted-foreground">
                           {t('lesson.flipCard')} 👆
@@ -224,7 +253,7 @@ export default function LessonPlayer() {
                       </>
                     ) : (
                       <p className="text-3xl font-bold text-primary">
-                        {currentTask.correctAnswer}
+                        {currentTask.correct_answer}
                       </p>
                     )}
                   </CardContent>
@@ -257,7 +286,7 @@ export default function LessonPlayer() {
               <Card>
                 <CardContent className="pt-6">
                   <p className="text-xl font-semibold text-foreground text-center">
-                    {currentTask.questionText}
+                    {currentTask.question_text}
                   </p>
                 </CardContent>
               </Card>
@@ -267,7 +296,7 @@ export default function LessonPlayer() {
                   let buttonClass = 'justify-start h-auto py-4 px-4 text-left';
                   
                   if (answerState !== 'pending') {
-                    if (answer === currentTask.correctAnswer) {
+                    if (answer === currentTask.correct_answer) {
                       buttonClass += ' bg-green-500/10 border-green-500 text-green-700 dark:text-green-400';
                     } else if (answer === selectedAnswer && answerState === 'incorrect') {
                       buttonClass += ' bg-destructive/10 border-destructive text-destructive';
@@ -285,7 +314,7 @@ export default function LessonPlayer() {
                       disabled={answerState !== 'pending'}
                     >
                       <span className="font-medium">{answer}</span>
-                      {answerState !== 'pending' && answer === currentTask.correctAnswer && (
+                      {answerState !== 'pending' && answer === currentTask.correct_answer && (
                         <Check className="ml-auto h-5 w-5 text-green-500" />
                       )}
                       {answerState === 'incorrect' && answer === selectedAnswer && (
@@ -320,20 +349,20 @@ export default function LessonPlayer() {
               
               {answerState === 'incorrect' && currentTask.type !== 'FLASHCARD' && (
                 <p className="text-sm text-muted-foreground">
-                  {t('lesson.correctAnswer')}: <span className="font-medium text-foreground">{currentTask.correctAnswer}</span>
+                  {t('lesson.correctAnswer')}: <span className="font-medium text-foreground">{currentTask.correct_answer}</span>
                 </p>
               )}
 
               {/* Add to vocabulary button */}
-              {currentTask.vocabularyId && (
+              {currentTask.vocabulary_id && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="mt-2"
-                  onClick={() => handleAddToVocabulary(currentTask.vocabularyId!)}
-                  disabled={addedWords.has(currentTask.vocabularyId)}
+                  onClick={() => handleAddToVocabulary(currentTask.vocabulary_id!)}
+                  disabled={addedWords.has(currentTask.vocabulary_id)}
                 >
-                  {addedWords.has(currentTask.vocabularyId) ? (
+                  {addedWords.has(currentTask.vocabulary_id) ? (
                     <>
                       <BookMarked className="mr-2 h-4 w-4" />
                       {t('lesson.added')}
