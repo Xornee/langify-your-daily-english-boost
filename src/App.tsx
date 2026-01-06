@@ -71,8 +71,13 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isAuthenticated && hasCompletedOnboarding) {
-    return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) {
+    // Redirect to appropriate page based on onboarding status
+    if (hasCompletedOnboarding) {
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      return <Navigate to="/onboarding" replace />;
+    }
   }
 
   return <>{children}</>;

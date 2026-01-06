@@ -5,8 +5,10 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 import { useCourses } from '@/hooks/useCourses';
-import { Clock, BookOpen, ChevronRight, Loader2 } from 'lucide-react';
+import { useCourseProgress } from '@/hooks/useCourseProgress';
+import { Clock, BookOpen, ChevronRight, Loader2, CheckCircle2, PlayCircle } from 'lucide-react';
 
 export default function Courses() {
   const { t, language } = useLanguage();
@@ -14,6 +16,7 @@ export default function Courses() {
   const [levelFilter, setLevelFilter] = useState<string>('all');
   
   const { courses, isLoading, error } = useCourses(industryFilter, levelFilter);
+  const { progress } = useCourseProgress();
 
   const industryOptions = [
     { value: 'all', label: t('courses.all') },
@@ -37,6 +40,21 @@ export default function Courses() {
     finance: 'bg-green-500/10 text-green-600 dark:text-green-400',
     office: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
     general: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+  };
+
+  const getButtonText = (courseId: string) => {
+    const courseProgress = progress.get(courseId);
+    if (!courseProgress) return t('courses.start');
+    if (courseProgress.isCompleted) return language === 'pl' ? 'Powtórz' : 'Review';
+    if (courseProgress.isStarted) return language === 'pl' ? 'Kontynuuj' : 'Continue';
+    return t('courses.start');
+  };
+
+  const getButtonIcon = (courseId: string) => {
+    const courseProgress = progress.get(courseId);
+    if (courseProgress?.isCompleted) return <CheckCircle2 className="ml-2 h-4 w-4" />;
+    if (courseProgress?.isStarted) return <PlayCircle className="ml-2 h-4 w-4" />;
+    return <ChevronRight className="ml-2 h-4 w-4" />;
   };
 
   return (
@@ -98,46 +116,72 @@ export default function Courses() {
           <>
             {/* Course Grid */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {courses.map((course) => (
-                <Card key={course.id} className="hover:shadow-lg transition-all group">
-                  <CardHeader>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${industryColors[course.industry_tag || 'general']}`}>
-                        {industryOptions.find(o => o.value === course.industry_tag)?.label || course.industry_tag}
-                      </span>
-                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
-                        {course.level}
-                      </span>
-                    </div>
-                    <CardTitle className="text-xl group-hover:text-primary transition-colors">
-                      {course.title}
-                    </CardTitle>
-                    <CardDescription className="line-clamp-3">
-                      {course.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <BookOpen className="h-4 w-4" />
-                          {course.lessons_count} {t('courses.lessons')}
+              {courses.map((course) => {
+                const courseProgress = progress.get(course.id);
+                return (
+                  <Card key={course.id} className={`hover:shadow-lg transition-all group ${courseProgress?.isCompleted ? 'border-green-500/50' : ''}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${industryColors[course.industry_tag || 'general']}`}>
+                            {industryOptions.find(o => o.value === course.industry_tag)?.label || course.industry_tag}
+                          </span>
+                          {courseProgress?.isCompleted && (
+                            <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              {language === 'pl' ? 'Ukończono' : 'Completed'}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {course.estimated_minutes} {t('courses.minutes')}
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
+                          {course.level}
+                        </span>
+                      </div>
+                      <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                        {course.title}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-3">
+                        {course.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <BookOpen className="h-4 w-4" />
+                            {course.lessons_count} {t('courses.lessons')}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {course.estimated_minutes} {t('courses.minutes')}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <Button className="w-full group-hover:bg-primary" asChild>
-                      <Link to={`/courses/${course.id}`}>
-                        {t('courses.start')}
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                      
+                      {/* Progress bar */}
+                      {courseProgress && courseProgress.isStarted && (
+                        <div className="mb-4">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>{language === 'pl' ? 'Postęp' : 'Progress'}</span>
+                            <span>{courseProgress.completedLessons}/{courseProgress.totalLessons} {t('courses.lessons')}</span>
+                          </div>
+                          <Progress value={courseProgress.progressPercent} className="h-2" />
+                        </div>
+                      )}
+                      
+                      <Button 
+                        className={`w-full ${courseProgress?.isCompleted ? 'bg-green-600 hover:bg-green-700' : 'group-hover:bg-primary'}`} 
+                        asChild
+                      >
+                        <Link to={`/courses/${course.id}`}>
+                          {getButtonText(course.id)}
+                          {getButtonIcon(course.id)}
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             {courses.length === 0 && (
