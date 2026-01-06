@@ -345,7 +345,7 @@ export function useSupabaseAuth() {
     setHasCompletedOnboarding(true);
   };
 
-  const hasRole = (role: 'admin' | 'moderator' | 'user'): boolean => {
+  const hasRole = (role: 'admin' | 'teacher' | 'user'): boolean => {
     return userRoles.some(r => r.role === role);
   };
 

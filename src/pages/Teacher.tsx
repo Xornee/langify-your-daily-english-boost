@@ -62,8 +62,8 @@ export default function Teacher() {
     return <Navigate to="/auth/login" replace />;
   }
 
-  // Only teachers (moderator role) and admins can access
-  const isTeacherOrAdmin = hasRole && (hasRole('moderator') || hasRole('admin'));
+  // Only teachers and admins can access
+  const isTeacherOrAdmin = hasRole && (hasRole('teacher') || hasRole('admin'));
   if (!isTeacherOrAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
